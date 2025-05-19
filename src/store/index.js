@@ -72,67 +72,58 @@ export default createStore({
             return userId
         },
         fetchLobbies({ commit }) {
-            // Mock data for now - would be an API call in production
-            const mockLobbies = [
-                {
-                    id: 'lobby1',
-                    name: 'German Beginners',
-                    host: 'user123',
-                    players: [{ id: 'user123', username: 'GermanLearner', status: 'ready' }],
-                    gameMode: 'single-word',
-                    maxPlayers: 4,
-                    status: 'waiting'
-                },
-                {
-                    id: 'lobby2',
-                    name: 'Advanced Translation',
-                    host: 'user456',
-                    players: [
-                        { id: 'user456', username: 'LanguageMaster', status: 'ready' },
-                        { id: 'user789', username: 'WordWizard', status: 'not-ready' }
-                    ],
-                    gameMode: 'fill-blank',
-                    maxPlayers: 4,
-                    status: 'waiting'
-                }
-            ]
-            commit('setActiveLobbies', mockLobbies)
+            return fetch('http://localhost:8000/index.php/lobbies')
+                .then(res => res.json())
+                .then(data => commit('setActiveLobbies', data))
+                .catch(err => console.error('Failed to fetch lobbies:', err));
         },
         createLobby({ commit, state }, lobbyData) {
-            // In a real app, this would make an API call
-            const newLobby = {
-                id: 'lobby_' + Math.random().toString(36).substr(2, 9),
-                name: lobbyData.name,
-                host: state.user.id,
-                players: [{ id: state.user.id, username: state.user.username, status: 'ready' }],
-                gameMode: lobbyData.gameMode,
-                maxPlayers: lobbyData.maxPlayers || 4,
-                status: 'waiting'
-            }
-            commit('setCurrentLobby', newLobby)
-            return newLobby
+            return fetch('http://localhost:8000/index.php/lobbies', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: lobbyData.name,
+                    host: state.user.id,
+                    username: state.user.username,
+                    gameMode: lobbyData.gameMode,
+                    maxPlayers: lobbyData.maxPlayers
+                })
+            })
+            .then(res => res.json())
+            .then(newLobby => {
+                commit('setCurrentLobby', newLobby);
+                return newLobby;
+            })
+            .catch(err => console.error('Failed to create lobby:', err));
         },
         joinLobby({ commit, state }, lobbyId) {
-            // Find the lobby in active lobbies
-            const lobby = state.activeLobbies.find(l => l.id === lobbyId)
-            if (lobby) {
-                // Add current user to the lobby
-                const updatedLobby = {
-                    ...lobby,
-                    players: [
-                        ...lobby.players,
-                        { id: state.user.id, username: state.user.username, status: 'not-ready' }
-                    ]
-                }
-                commit('setCurrentLobby', updatedLobby)
-                return updatedLobby
-            }
-            return null
+            return fetch(`http://localhost:8000/index.php/lobbies/${lobbyId}/join`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: state.user.id, username: state.user.username })
+            })
+            .then(res => res.json())
+            .then(updatedLobby => {
+                commit('setCurrentLobby', updatedLobby);
+                return updatedLobby;
+            })
+            .catch(err => {
+                console.error('Failed to join lobby:', err);
+                return null;
+            });
         },
         leaveLobby({ commit, state }) {
             if (state.currentLobby) {
-                // In a real app, this would make an API call
-                commit('setCurrentLobby', null)
+                return fetch(`http://localhost:8000/index.php/lobbies/${state.currentLobby.id}/leave`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: state.user.id })
+                })
+                .then(res => res.json())
+                .then(() => {
+                    commit('setCurrentLobby', null);
+                })
+                .catch(err => console.error('Failed to leave lobby:', err));
             }
         },
         setPlayerReady({ commit, state }, isReady) {

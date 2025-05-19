@@ -127,7 +127,7 @@
             <div class="card-footer">
               <button
                   class="btn btn-primary w-100"
-                  @click="joinLobby(lobby.id)"
+                  @click="handleJoinLobby(lobby.id)"
                   :disabled="lobby.status !== 'waiting' || lobby.players.length >= lobby.maxPlayers"
               >
                 <i class="bi bi-box-arrow-in-right me-2"></i>

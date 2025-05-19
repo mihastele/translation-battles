@@ -15,12 +15,12 @@
                   class="form-control"
                   v-model="username"
                   placeholder="Enter your username"
-                  @keyup.enter="login"
+                  @keyup.enter="handleLogin"
               >
               <button
                   class="btn btn-primary"
                   type="button"
-                  @click="login"
+                  @click="handleLogin"
                   :disabled="!username.trim()"
               >
                 <i class="bi bi-box-arrow-in-right"></i> Login
