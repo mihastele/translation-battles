@@ -29,9 +29,15 @@
 
       <!-- Pre-game lobby -->
       <div v-if="!gameStarted" class="game-lobby">
-        <div class="card mb-4">
+        <div v-if="!currentLobby" class="text-center p-5">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2">Loading lobby data...</p>
+        </div>
+        <div v-else class="card mb-4">
           <div class="card-header">
-            <h3 class="mb-0">{{ currentLobby.name }}</h3>
+            <h3 class="mb-0">{{ currentLobby?.name || 'Game Lobby' }}</h3>
           </div>
           <div class="card-body">
             <div class="row mb-4">
@@ -53,21 +59,21 @@
                 </ul>
               </div>
               <div class="col-md-6">
-                <h5>Players ({{ currentLobby.players.length }}/{{ currentLobby.maxPlayers }})</h5>
+                <h5>Players ({{ currentLobby?.players?.length || 0 }}/{{ currentLobby?.maxPlayers || 0 }})</h5>
                 <ul class="list-group">
                   <li
-                      v-for="player in currentLobby.players"
+                      v-for="player in currentLobby?.players || []"
                       :key="player.id"
                       class="list-group-item d-flex justify-content-between align-items-center"
                   >
                     <div>
                       <i
                           class="bi"
-                          :class="player.id === currentLobby.host ? 'bi-person-fill' : 'bi-person'"
+                          :class="player.id === currentLobby?.host ? 'bi-person-fill' : 'bi-person'"
                       ></i>
                       {{ player.username }}
                       <span
-                          v-if="player.id === currentLobby.host"
+                          v-if="player.id === currentLobby?.host"
                           class="badge bg-warning ms-1"
                       >Host</span>
                     </div>
@@ -362,18 +368,18 @@ const isHost = computed(() => {
 })
 
 const isReady = computed(() => {
-  if (!currentLobby.value) return false
+  if (!currentLobby.value || !Array.isArray(currentLobby.value.players)) return false
   const currentPlayer = currentLobby.value.players.find(p => p.id === user.value.id)
   return currentPlayer && currentPlayer.status === 'ready'
 })
 
 const canStartGame = computed(() => {
-  if (!currentLobby.value || currentLobby.value.players.length < 2) return false
+  if (!currentLobby.value || !Array.isArray(currentLobby.value.players) || currentLobby.value.players.length < 2) return false
   return currentLobby.value.players.every(player => player.status === 'ready')
 })
 
 const sortedPlayersByScore = computed(() => {
-  return [...players.value].sort((a, b) => b.score - a.score)
+  return Array.isArray(players.value) ? [...players.value].sort((a, b) => b.score - a.score) : []
 })
 
 // Methods
@@ -387,6 +393,11 @@ const toggleReady = async () => {
 }
 
 const startGame = () => {
+  // Defensive: ensure players array exists
+  if (!currentLobby.value || !Array.isArray(currentLobby.value.players)) {
+    // Optionally show an error, or just return
+    return
+  }
   // Initialize player scores
   players.value = currentLobby.value.players.map(player => ({
     ...player,
@@ -601,10 +612,21 @@ const getOrdinalSuffix = (num) => {
 
 // Lifecycle hooks
 onMounted(async () => {
-  // In a real app, we would fetch the lobby data from the server
+  // Fetch the lobby data if not already loaded
   if (!currentLobby.value) {
-    // Mock joining a lobby if not already in one
-    await store.dispatch('joinLobby', props.id)
+    try {
+      await store.dispatch('fetchLobbies')
+      // If still no current lobby, try to join the lobby with the ID from the route
+      if (route.params.id) {
+        await store.dispatch('joinLobby', route.params.id)
+      } else {
+        // If no ID in route, redirect to home
+        router.push('/')
+      }
+    } catch (error) {
+      console.error('Error loading lobby:', error)
+      router.push('/')
+    }
   }
 })
 
