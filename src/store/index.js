@@ -34,7 +34,21 @@ export default createStore({
             state.activeLobbies = lobbies
         },
         setCurrentLobby(state, lobby) {
-            state.currentLobby = lobby
+            if (lobby) {
+                // Ensure players array exists
+                if (!lobby.players) {
+                    lobby.players = [];
+                }
+                // Ensure all players have required fields
+                lobby.players = lobby.players.map(p => ({
+                    id: p.id || '',
+                    username: p.username || 'Unknown',
+                    status: p.status || 'not-ready',
+                    isHost: p.isHost || false,
+                    score: typeof p.score === 'number' ? p.score : 0
+                }));
+            }
+            state.currentLobby = lobby;
         },
         setGameSettings(state, settings) {
             state.gameSettings = { ...state.gameSettings, ...settings }
@@ -52,11 +66,26 @@ export default createStore({
             }
         },
         updatePlayerStatus(state, { playerId, status }) {
-            if (state.currentLobby) {
-                const player = state.currentLobby.players.find(p => p.id === playerId)
-                if (player) {
-                    player.status = status
-                }
+            if (!state.currentLobby) return;
+            
+            // Initialize players array if it doesn't exist
+            if (!state.currentLobby.players) {
+                state.currentLobby.players = [];
+            }
+            
+            // Find the player or create a new one if not found
+            let player = state.currentLobby.players.find(p => p && p.id === playerId);
+            
+            if (player) {
+                // Update existing player
+                player.status = status;
+            } else {
+                // Add new player (this should be handled by joinLobby, but just in case)
+                state.currentLobby.players.push({
+                    id: playerId,
+                    status: status,
+                    score: 0
+                });
             }
         }
     },
