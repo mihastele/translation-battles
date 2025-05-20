@@ -1,1 +1,20 @@
-[]
+[
+    {
+        "id": "lobby_682cc98620346",
+        "name": "aaaaaa",
+        "host": "user_o0muvserw",
+        "players": [
+            {
+                "id": "user_o0muvserw",
+                "username": "cccccc",
+                "status": "ready",
+                "isHost": true,
+                "score": 0
+            }
+        ],
+        "gameMode": "single-word",
+        "maxPlayers": 4,
+        "status": "waiting",
+        "createdAt": 1747765638
+    }
+]

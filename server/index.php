@@ -27,11 +27,23 @@ if (!file_exists($lobbiesFile)) {
 $lobbies = json_decode(file_get_contents($lobbiesFile), true);
 $method = $_SERVER['REQUEST_METHOD'];
 $path = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
-$segments = explode('/', $path);
+$segments = $path ? explode('/', $path) : [];
 
+// Handle CORS preflight requests
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    header('HTTP/1.1 200 OK');
+    exit();
+}
+
+// If no path is provided, default to lobbies
+if (empty($segments[0])) {
+    $segments = ['lobbies'];
+}
+
+// Only allow lobbies endpoint
 if ($segments[0] !== 'lobbies') {
     http_response_code(404);
-    echo json_encode(['error' => 'Not Found']);
+    echo json_encode(['error' => 'Endpoint not found']);
     exit();
 }
 

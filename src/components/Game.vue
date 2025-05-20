@@ -1,6 +1,29 @@
 <template>
   <div class="game-page">
-    <div class="container py-4">
+    <div v-if="isLoading" class="loading-overlay">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2">Loading game data...</p>
+    </div>
+    
+    <div v-else-if="error" class="error-message text-center py-5">
+      <div class="alert alert-danger">
+        <h4>Error</h4>
+        <p>{{ error }}</p>
+        <p>Redirecting to home page...</p>
+      </div>
+    </div>
+    
+    <div v-else-if="!isValidState" class="invalid-state text-center py-5">
+      <div class="alert alert-warning">
+        <h4>Invalid Game State</h4>
+        <p>Unable to load the game. Please try again.</p>
+        <button @click="returnToLobby" class="btn btn-primary mt-2">Return to Lobby</button>
+      </div>
+    </div>
+    
+    <div v-else class="container py-4">
       <!-- Game header -->
       <div class="row mb-4">
         <div class="col">
@@ -295,6 +318,28 @@
   </div>
 </template>
 
+<style scoped>
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 1000;
+}
+
+.error-message, .invalid-state {
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 1rem;
+}
+</style>
+
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useStore } from 'vuex'
@@ -362,6 +407,24 @@ const usedWordIndices = ref([])
 // Computed properties
 const user = computed(() => store.state.user)
 const currentLobby = computed(() => store.state.currentLobby)
+
+// Check if the component is in a valid state
+const isValidState = computed(() => {
+  const isValid = user.value?.id && currentLobby.value?.id && currentLobby.value.players
+  
+  // Debug logging
+  console.log('Game state validation:', {
+    hasUser: !!user.value,
+    userId: user.value?.id,
+    hasLobby: !!currentLobby.value,
+    lobbyId: currentLobby.value?.id,
+    hasPlayers: !!currentLobby.value?.players,
+    players: currentLobby.value?.players,
+    isValid
+  })
+  
+  return isValid
+})
 
 const isHost = computed(() => {
   return currentLobby.value && user.value.id === currentLobby.value.host
@@ -610,23 +673,103 @@ const getOrdinalSuffix = (num) => {
   return 'th'
 }
 
+// State
+const isLoading = ref(true)
+const error = ref(null)
+
 // Lifecycle hooks
 onMounted(async () => {
-  // Fetch the lobby data if not already loaded
-  if (!currentLobby.value) {
-    try {
-      await store.dispatch('fetchLobbies')
-      // If still no current lobby, try to join the lobby with the ID from the route
+  try {
+    console.log('Game component mounted')
+    
+    // Ensure we have a user
+    if (!user.value || !user.value.id) {
+      console.log('No user found, checking store state')
+      // Try to get user from localStorage as a fallback
+      const storedUser = localStorage.getItem('user')
+      if (storedUser) {
+        const parsedUser = JSON.parse(storedUser)
+        store.commit('setUser', parsedUser)
+      } else {
+        throw new Error('User not authenticated. Please log in again.')
+      }
+    }
+    
+    console.log('Current user:', user.value)
+    
+    // If no current lobby, try to load it
+    if (!currentLobby.value || !currentLobby.value.id) {
+      console.log('No current lobby, checking route for lobby ID...')
+      
+      // If we have a lobby ID in the route, try to join it
       if (route.params.id) {
-        await store.dispatch('joinLobby', route.params.id)
+        console.log(`Attempting to join lobby ${route.params.id}...`)
+        
+        try {
+          // First, fetch the latest lobbies list
+          await store.dispatch('fetchLobbies')
+          
+          // Then attempt to join the lobby
+          await store.dispatch('joinLobby', route.params.id)
+          
+          // If still no lobby after joining, throw an error
+          if (!currentLobby.value || !currentLobby.value.id) {
+            throw new Error('Failed to join lobby. Please try again.')
+          }
+          
+          console.log('Successfully joined lobby:', currentLobby.value.id)
+          
+        } catch (joinError) {
+          console.error('Error joining lobby:', joinError)
+          // If the lobby doesn't exist, redirect to home with an error
+          if (joinError.message.toLowerCase().includes('not found')) {
+            error.value = 'The lobby was not found. It may have been closed or never existed.'
+          } else {
+            error.value = joinError.message || 'Failed to join the lobby. Please try again.'
+          }
+          // Redirect to home after showing the error
+          setTimeout(() => router.push('/'), 3000)
+          return
+        }
       } else {
         // If no ID in route, redirect to home
+        console.log('No lobby ID in route, redirecting to home')
         router.push('/')
+        return
       }
-    } catch (error) {
-      console.error('Error loading lobby:', error)
-      router.push('/')
     }
+    
+    console.log('Current lobby:', currentLobby.value)
+    
+    // Ensure the current user is in the players list
+    if (currentLobby.value && Array.isArray(currentLobby.value.players)) {
+      console.log('Checking if user is in lobby players list...')
+      const userInLobby = currentLobby.value.players.some(p => p && p.id === user.value?.id)
+      
+      if (!userInLobby) {
+        console.log('User not in lobby players list, attempting to join...')
+        try {
+          await store.dispatch('joinLobby', currentLobby.value.id)
+          // Give some time for the state to update
+          await new Promise(resolve => setTimeout(resolve, 500))
+        } catch (joinError) {
+          console.error('Error joining lobby:', joinError)
+          throw new Error('Failed to join the game. Please try again.')
+        }
+      }
+    } else {
+      console.warn('Lobby players list is not an array or is missing')
+    }
+    
+    console.log('Game initialization complete')
+    
+  } catch (err) {
+    console.error('Error initializing game:', err)
+    error.value = err.message || 'Failed to load game. Please try again.'
+    // Give some time to show the error before redirecting
+    setTimeout(() => router.push('/'), 3000)
+  } finally {
+    isLoading.value = false
   }
 })
 
