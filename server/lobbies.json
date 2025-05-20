@@ -1,40 +1,12 @@
 [
     {
-        "id": "lobby_682cc98620346",
-        "name": "aaaaaa",
-        "host": "user_o0muvserw",
+        "id": "lobby_682cd33f048b8",
+        "name": "aaaa",
+        "host": "user_hat3m5l2h",
         "players": [
             {
-                "id": "user_o0muvserw",
-                "username": "cccccc",
-                "status": "ready",
-                "isHost": true,
-                "score": 0
-            },
-            {
-                "id": "user_q03eifozf",
-                "username": "gggg",
-                "status": "not-ready"
-            },
-            {
-                "id": "user_nru0dxvq3",
-                "username": "aaa",
-                "status": "not-ready"
-            }
-        ],
-        "gameMode": "single-word",
-        "maxPlayers": 4,
-        "status": "waiting",
-        "createdAt": 1747765638
-    },
-    {
-        "id": "lobby_682cca92c19f0",
-        "name": "eeee",
-        "host": "user_34s1nwf7g",
-        "players": [
-            {
-                "id": "user_34s1nwf7g",
-                "username": "aa",
+                "id": "user_hat3m5l2h",
+                "username": "aaaaaa",
                 "status": "ready",
                 "isHost": true,
                 "score": 0
@@ -43,41 +15,6 @@
         "gameMode": "single-word",
         "maxPlayers": 4,
         "status": "waiting",
-        "createdAt": 1747765906
-    },
-    {
-        "id": "lobby_682cca9420f39",
-        "name": "eeee",
-        "host": "user_34s1nwf7g",
-        "players": [
-            {
-                "id": "user_34s1nwf7g",
-                "username": "aa",
-                "status": "ready",
-                "isHost": true,
-                "score": 0
-            }
-        ],
-        "gameMode": "single-word",
-        "maxPlayers": 4,
-        "status": "waiting",
-        "createdAt": 1747765908
-    },
-    {
-        "id": "lobby_682ccaa7a5aa5",
-        "name": "aaaaaa",
-        "host": "user_rc9fjygi9",
-        "players": [
-            {
-                "id": "user_rc9fjygi9",
-                "username": "fffff",
-                "status": "not-ready",
-                "isHost": true
-            }
-        ],
-        "gameMode": "single-word",
-        "maxPlayers": 4,
-        "status": "waiting",
-        "createdAt": 1747765927
+        "createdAt": 1747768127
     }
 ]
