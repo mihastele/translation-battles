@@ -16,5 +16,51 @@
         "maxPlayers": 4,
         "status": "waiting",
         "createdAt": 1747768127
+    },
+    {
+        "id": "lobby_682cd7cc1fb24",
+        "name": "aaaa",
+        "host": "user_2gxcbphdm",
+        "players": [
+            {
+                "id": "user_2gxcbphdm",
+                "username": "ccccccc",
+                "status": "ready",
+                "isHost": true,
+                "score": 0
+            }
+        ],
+        "gameMode": "single-word",
+        "maxPlayers": 4,
+        "status": "waiting",
+        "createdAt": 1747769292
+    },
+    {
+        "id": "lobby_682cdc5a3abbc",
+        "name": "aaaaaa",
+        "host": "user_ur7z7hr1c",
+        "players": [
+            {
+                "id": "user_ur7z7hr1c",
+                "username": "aaaa",
+                "status": "ready",
+                "isHost": true,
+                "score": 0
+            },
+            {
+                "id": "user_1su7vubvd",
+                "username": "cccc",
+                "status": "ready"
+            },
+            {
+                "id": "user_hlenyl9y9",
+                "username": "aaaa",
+                "status": "ready"
+            }
+        ],
+        "gameMode": "single-word",
+        "maxPlayers": 4,
+        "status": "waiting",
+        "createdAt": 1747770458
     }
 ]

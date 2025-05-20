@@ -31,6 +31,9 @@ class GameHandler implements MessageComponentInterface {
             case 'joinLobby':
                 $this->joinLobby($from, $lobbyId, $playerName);
                 break;
+            case 'leaveLobby':
+                $this->leaveLobby($from, $lobbyId);
+                break;
             case 'startGame':
                 $this->startGame($lobbyId);
                 break;
@@ -53,7 +56,7 @@ class GameHandler implements MessageComponentInterface {
                 $playerName = $lobby['players'][$conn->resourceId];
                 unset($lobby['players'][$conn->resourceId]);
                 $this->broadcastToLobby($lobbyId, [
-                    'type' => 'playerLeft',
+                    'type' => 'player_left',
                     'playerName' => $playerName,
                     'players' => array_values($lobby['players'])
                 ]);
@@ -84,7 +87,7 @@ class GameHandler implements MessageComponentInterface {
         
         // Send updated player list to all clients in lobby
         $this->broadcastToLobby($lobbyId, [
-            'type' => 'playerJoined',
+            'type' => 'player_joined',
             'playerName' => $playerName,
             'players' => array_values($this->lobbies[$lobbyId]['players']),
             'gameState' => $this->lobbies[$lobbyId]['gameState']
@@ -97,7 +100,7 @@ class GameHandler implements MessageComponentInterface {
         $this->lobbies[$lobbyId]['gameState'] = 'in_progress';
         
         $this->broadcastToLobby($lobbyId, [
-            'type' => 'gameStarted',
+            'type' => 'game_started',
             'gameState' => 'in_progress'
         ]);
     }
@@ -106,10 +109,24 @@ class GameHandler implements MessageComponentInterface {
         if (!isset($this->lobbies[$lobbyId])) return;
         
         $this->broadcastToLobby($lobbyId, [
-            'type' => 'answerSubmitted',
+            'type' => 'answer_submitted',
             'playerName' => $playerName,
             'answer' => $answer
         ]);
+    }
+
+    protected function leaveLobby(ConnectionInterface $conn, $lobbyId) {
+        if (!isset($this->lobbies[$lobbyId]['players'][$conn->resourceId])) return;
+        $playerName = $this->lobbies[$lobbyId]['players'][$conn->resourceId];
+        unset($this->lobbies[$lobbyId]['players'][$conn->resourceId]);
+        $this->broadcastToLobby($lobbyId, [
+            'type' => 'player_left',
+            'playerName' => $playerName,
+            'players' => array_values($this->lobbies[$lobbyId]['players'])
+        ]);
+        if (empty($this->lobbies[$lobbyId]['players'])) {
+            unset($this->lobbies[$lobbyId]);
+        }
     }
 
     protected function broadcastToLobby($lobbyId, $message) {

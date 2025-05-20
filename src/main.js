@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import store from './store'
+import websocket from './plugins/websocket'
 
 // Import Bootstrap CSS and JS
 import 'bootstrap/dist/css/bootstrap.min.css'
@@ -16,6 +17,7 @@ const app = createApp(App)
 // Use plugins
 app.use(store)
 app.use(router)
+app.use(websocket)
 
 // Mount the app
 app.mount('#app')

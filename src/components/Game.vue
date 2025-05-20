@@ -341,9 +341,10 @@
 </style>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch, getCurrentInstance } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
+import { getWebSocket } from '../plugins/websocket'
 
 // Props
 const props = defineProps({
@@ -447,7 +448,10 @@ const sortedPlayersByScore = computed(() => {
 
 // Methods
 const leaveLobby = async () => {
-  await store.dispatch('leaveLobby')
+  // Notify server and cleanup
+  const instance = getCurrentInstance()
+  const ws = instance.proxy.$ws
+  ws.leaveLobby(currentLobby.value.id, user.value.username)
   router.push('/')
 }
 
@@ -677,6 +681,10 @@ const getOrdinalSuffix = (num) => {
 const isLoading = ref(true)
 const error = ref(null)
 
+// Initialize WebSocket plugin instance
+const instance = getCurrentInstance()
+const ws = instance.proxy.$ws
+
 // Lifecycle hooks
 onMounted(async () => {
   try {
@@ -718,6 +726,8 @@ onMounted(async () => {
           }
           
           console.log('Successfully joined lobby:', currentLobby.value.id)
+          // Notify server via WebSocket
+          ws.joinLobby(currentLobby.value.id, user.value.username)
           
         } catch (joinError) {
           console.error('Error joining lobby:', joinError)
@@ -787,4 +797,15 @@ watch(() => currentLobby.value, (newLobby) => {
     router.push('/')
   }
 })
+
+// // User actions
+// const leaveLobby = () => {
+//   // Notify server and cleanup
+//   ws.leaveLobby(currentLobby.value.id, user.value.username)
+//   router.push('/')
+// }
+
+// const returnToLobby = () => {
+//   router.push('/')
+// }
 </script>

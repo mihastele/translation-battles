@@ -1,4 +1,5 @@
-import { useStore } from 'vuex';
+import { createStore, useStore } from 'vuex';
+import { initializeWebSocket, closeWebSocket, sendMessage } from '../plugins/websocket';
 
 export default {
     namespaced: true,
@@ -25,82 +26,20 @@ export default {
     },
     actions: {
         initializeWebSocket({ commit, dispatch, state }) {
-            // Close existing connection if any
-            if (state.socket) {
-                state.socket.close();
-            }
-
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            const wsUrl = import.meta.env.VITE_WS_URL || `${wsProtocol}${window.location.hostname}:8080`;
-            
-            const socket = new WebSocket(wsUrl);
+            const socket = initializeWebSocket();
             commit('SET_SOCKET', socket);
-
-            socket.onopen = () => {
-                console.log('WebSocket connected');
-                commit('SET_CONNECTION_STATUS', true);
-                commit('RESET_RECONNECT_ATTEMPTS');
-                
-                // Re-subscribe to any necessary channels or restore state
-                const store = useStore();
-                if (store.state.user.isAuthenticated) {
-                    dispatch('reconnectUser', store.state.user);
-                }
-            };
-
-            socket.onmessage = (event) => {
-                try {
-                    const message = JSON.parse(event.data);
-                    console.log('WebSocket message received:', message);
-                    dispatch('handleWebSocketMessage', message);
-                } catch (error) {
-                    console.error('Error parsing WebSocket message:', error);
-                }
-            };
-
-            socket.onclose = () => {
-                console.log('WebSocket disconnected');
-                commit('SET_CONNECTION_STATUS', false);
-                
-                // Attempt to reconnect if not manually closed
-                if (state.reconnectAttempts < state.maxReconnectAttempts) {
-                    setTimeout(() => {
-                        commit('INCREMENT_RECONNECT_ATTEMPTS');
-                        console.log(`Attempting to reconnect (${state.reconnectAttempts}/${state.maxReconnectAttempts})`);
-                        dispatch('initializeWebSocket');
-                    }, state.reconnectInterval);
-                }
-            };
-
-            socket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
-
+            commit('SET_CONNECTION_STATUS', socket.readyState === WebSocket.OPEN);
             return socket;
         },
 
         closeWebSocket({ state, commit }) {
-            if (state.socket) {
-                state.socket.close();
-                commit('SET_SOCKET', null);
-                commit('SET_CONNECTION_STATUS', false);
-            }
+            closeWebSocket();
+            commit('SET_SOCKET', null);
+            commit('SET_CONNECTION_STATUS', false);
         },
 
         sendMessage({ state }, message) {
-            if (state.socket && state.isConnected) {
-                try {
-                    const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
-                    state.socket.send(messageStr);
-                    return true;
-                } catch (error) {
-                    console.error('Error sending WebSocket message:', error);
-                    return false;
-                }
-            } else {
-                console.warn('WebSocket is not connected');
-                return false;
-            }
+            return sendMessage(message);
         },
 
         async handleWebSocketMessage({ commit, dispatch }, message) {

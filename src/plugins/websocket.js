@@ -1,5 +1,6 @@
 let socket = null;
 const callbacks = new Map();
+import store from '../store'
 
 const initializeSocket = () => {
     if (socket) return socket;
@@ -8,6 +9,9 @@ const initializeSocket = () => {
     const wsHost = import.meta.env.VITE_WS_URL || `${wsProtocol}//${window.location.hostname}:8080`;
     
     socket = new WebSocket(wsHost);
+    socket.onopen = () => {
+        console.log('WebSocket connected');
+    };
     
     socket.onmessage = (event) => {
         const message = JSON.parse(event.data);
@@ -17,6 +21,8 @@ const initializeSocket = () => {
         if (callbacks.has(type)) {
             callbacks.get(type).forEach(callback => callback(data));
         }
+        // Dispatch to Vuex store for state updates
+        store.dispatch('websocket/handleWebSocketMessage', { type, ...data });
     };
     
     socket.onclose = () => {
@@ -64,29 +70,22 @@ export default {
             
             // Join a lobby
             joinLobby: (lobbyId, playerName) => {
-                ws.send(JSON.stringify({
-                    action: 'joinLobby',
-                    lobbyId,
-                    playerName
-                }));
+                ws.send(JSON.stringify({ action: 'joinLobby', lobbyId, playerName }));
+            },
+            
+            // Leave a lobby
+            leaveLobby: (lobbyId, playerName) => {
+                ws.send(JSON.stringify({ action: 'leaveLobby', lobbyId, playerName }));
             },
             
             // Start the game
             startGame: (lobbyId) => {
-                ws.send(JSON.stringify({
-                    action: 'startGame',
-                    lobbyId
-                }));
+                ws.send(JSON.stringify({ action: 'startGame', lobbyId }));
             },
             
             // Submit an answer
             submitAnswer: (lobbyId, playerName, answer) => {
-                ws.send(JSON.stringify({
-                    action: 'submitAnswer',
-                    lobbyId,
-                    playerName,
-                    answer
-                }));
+                ws.send(JSON.stringify({ action: 'submitAnswer', lobbyId, playerName, answer }));
             }
         };
     }
