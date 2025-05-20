@@ -120,16 +120,27 @@ if ($method === 'POST' && isset($segments[2]) && $segments[2] === 'leave') {
     exit();
 }
 
-// Update player ready status
-if ($method === 'POST' && isset($segments[2]) && $segments[2] === 'ready') {
-    $userId = $input['userId'];
+// Update player status (both /ready and /players/{id}/status endpoints)
+if ($method === 'POST' && 
+    ((isset($segments[2]) && $segments[2] === 'ready') || 
+     (isset($segments[2]) && $segments[2] === 'players' && isset($segments[4]) && $segments[4] === 'status'))) {
+    
+    $userId = $segments[2] === 'players' ? $segments[3] : $input['userId'];
     $status = $input['status'];
     
+    $playerFound = false;
     foreach ($lobbies[$lobbyIndex]['players'] as &$player) {
         if ($player['id'] === $userId) {
             $player['status'] = $status;
+            $playerFound = true;
             break;
         }
+    }
+    
+    if (!$playerFound) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Player not found in lobby']);
+        exit();
     }
     
     file_put_contents($lobbiesFile, json_encode($lobbies, JSON_PRETTY_PRINT));

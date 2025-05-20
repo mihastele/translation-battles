@@ -281,13 +281,16 @@ export default createStore({
                 // Update local state immediately for better UX
                 commit('updatePlayerStatus', { playerId: state.user.id, status });
                 
-                // Then sync with server
+                // Then sync with server - using the /ready endpoint
                 const response = await fetch(
-                    `${baseUrl}/lobbies/${state.currentLobby.id}/players/${state.user.id}/status`,
+                    `${baseUrl}/lobbies/${state.currentLobby.id}/ready`,
                     {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ status })
+                        body: JSON.stringify({ 
+                            userId: state.user.id,
+                            status: status
+                        })
                     }
                 );
                 
