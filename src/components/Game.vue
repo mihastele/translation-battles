@@ -368,14 +368,14 @@ const isHost = computed(() => {
 })
 
 const isReady = computed(() => {
-  if (!currentLobby.value || !Array.isArray(currentLobby.value.players)) return false
-  const currentPlayer = currentLobby.value.players.find(p => p.id === user.value.id)
-  return currentPlayer && currentPlayer.status === 'ready'
+  if (!currentLobby.value || !currentLobby.value.players || !Array.isArray(currentLobby.value.players)) return false
+  const currentPlayer = currentLobby.value.players.find(p => p && p.id === user.value?.id)
+  return currentPlayer?.status === 'ready'
 })
 
 const canStartGame = computed(() => {
-  if (!currentLobby.value || !Array.isArray(currentLobby.value.players) || currentLobby.value.players.length < 2) return false
-  return currentLobby.value.players.every(player => player.status === 'ready')
+  if (!currentLobby.value || !currentLobby.value.players || !Array.isArray(currentLobby.value.players) || currentLobby.value.players.length < 2) return false
+  return currentLobby.value.players.every(player => player?.status === 'ready')
 })
 
 const sortedPlayersByScore = computed(() => {

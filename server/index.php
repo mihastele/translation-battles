@@ -43,19 +43,27 @@ if ($method === 'GET' && count($segments) === 1) {
 $input = json_decode(file_get_contents('php://input'), true);
 
 if ($method === 'POST' && count($segments) === 1) {
+    $hostPlayer = [
+        'id' => $input['host'],
+        'username' => $input['username'],
+        'status' => 'ready',
+        'isHost' => true,
+        'score' => 0
+    ];
+    
     $newLobby = [
         'id' => uniqid('lobby_'),
         'name' => $input['name'] ?? 'Lobby',
         'host' => $input['host'],
-        'players' => [
-            ['id' => $input['host'], 'username' => $input['username'], 'status' => 'ready']
-        ],
+        'players' => [$hostPlayer],
         'gameMode' => $input['gameMode'] ?? 'single-word',
         'maxPlayers' => $input['maxPlayers'] ?? 4,
-        'status' => 'waiting'
+        'status' => 'waiting',
+        'createdAt' => time()
     ];
+    
     $lobbies[] = $newLobby;
-    file_put_contents($lobbiesFile, json_encode($lobbies));
+    file_put_contents($lobbiesFile, json_encode($lobbies, JSON_PRETTY_PRINT));
     echo json_encode($newLobby);
     exit();
 }
@@ -88,7 +96,31 @@ if ($method === 'POST' && isset($segments[2]) && $segments[2] === 'leave') {
     $lobbies[$lobbyIndex]['players'] = array_values(array_filter($lobbies[$lobbyIndex]['players'], function($p) use ($userId) {
         return $p['id'] !== $userId;
     }));
-    file_put_contents($lobbiesFile, json_encode($lobbies));
+    
+    // If host left, assign new host if there are other players
+    if ($lobbies[$lobbyIndex]['host'] === $userId && !empty($lobbies[$lobbyIndex]['players'])) {
+        $lobbies[$lobbyIndex]['host'] = $lobbies[$lobbyIndex]['players'][0]['id'];
+        $lobbies[$lobbyIndex]['players'][0]['isHost'] = true;
+    }
+    
+    file_put_contents($lobbiesFile, json_encode($lobbies, JSON_PRETTY_PRINT));
+    echo json_encode($lobbies[$lobbyIndex]);
+    exit();
+}
+
+// Update player ready status
+if ($method === 'POST' && isset($segments[2]) && $segments[2] === 'ready') {
+    $userId = $input['userId'];
+    $status = $input['status'];
+    
+    foreach ($lobbies[$lobbyIndex]['players'] as &$player) {
+        if ($player['id'] === $userId) {
+            $player['status'] = $status;
+            break;
+        }
+    }
+    
+    file_put_contents($lobbiesFile, json_encode($lobbies, JSON_PRETTY_PRINT));
     echo json_encode($lobbies[$lobbyIndex]);
     exit();
 }

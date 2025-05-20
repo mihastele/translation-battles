@@ -91,10 +91,23 @@ export default createStore({
             })
             .then(res => res.json())
             .then(newLobby => {
+                // Ensure the current user is in the players list
+                if (newLobby.players && !newLobby.players.some(p => p.id === state.user.id)) {
+                    newLobby.players.push({
+                        id: state.user.id,
+                        username: state.user.username,
+                        status: 'ready',
+                        isHost: true,
+                        score: 0
+                    });
+                }
                 commit('setCurrentLobby', newLobby);
                 return newLobby;
             })
-            .catch(err => console.error('Failed to create lobby:', err));
+            .catch(err => {
+                console.error('Failed to create lobby:', err);
+                throw err;
+            });
         },
         joinLobby({ commit, state }, lobbyId) {
             return fetch(`http://localhost:8000/index.php/lobbies/${lobbyId}/join`, {
@@ -126,13 +139,40 @@ export default createStore({
                 .catch(err => console.error('Failed to leave lobby:', err));
             }
         },
-        setPlayerReady({ commit, state }, isReady) {
-            if (state.currentLobby && state.user.id) {
+        setPlayerReady({ commit, state, dispatch }, isReady) {
+            if (!state.currentLobby || !state.user.id) return Promise.reject('No active lobby or user');
+            
+            const status = isReady ? 'ready' : 'not-ready';
+            
+            // First update local state for immediate feedback
+            commit('updatePlayerStatus', {
+                playerId: state.user.id,
+                status: status
+            });
+            
+            // Then sync with server
+            return fetch(`http://localhost:8000/index.php/lobbies/${state.currentLobby.id}/ready`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: state.user.id,
+                    status: status
+                })
+            })
+            .then(res => res.json())
+            .then(updatedLobby => {
+                commit('setCurrentLobby', updatedLobby);
+                return updatedLobby;
+            })
+            .catch(err => {
+                console.error('Failed to update ready status:', err);
+                // Revert local changes if server update fails
                 commit('updatePlayerStatus', {
                     playerId: state.user.id,
-                    status: isReady ? 'ready' : 'not-ready'
-                })
-            }
+                    status: isReady ? 'not-ready' : 'ready'
+                });
+                throw err;
+            });
         }
     }
 })
