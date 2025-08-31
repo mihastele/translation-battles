@@ -106,8 +106,10 @@ export default createStore({
                 const response = await fetch(`${baseUrl}/lobbies`);
                 if (!response.ok) throw new Error('Failed to fetch lobbies');
                 const data = await response.json();
-                commit('setActiveLobbies', data);
-                return data;
+                // Python backend returns { success: true, lobbies: [...] }
+                const lobbies = data.success ? data.lobbies : data;
+                commit('setActiveLobbies', lobbies);
+                return lobbies;
             } catch (err) {
                 console.error('Failed to fetch lobbies:', err);
                 throw err;
@@ -130,10 +132,11 @@ export default createStore({
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || 'Failed to create lobby');
+                    throw new Error(errorData.detail || errorData.error || 'Failed to create lobby');
                 }
 
-                const newLobby = await response.json();
+                const responseData = await response.json();
+                const newLobby = responseData.success ? responseData.lobby : responseData;
                 
                 // Ensure the current user is in the players list
                 if (!newLobby.players) newLobby.players = [];
@@ -171,7 +174,8 @@ export default createStore({
                     throw new Error('Failed to fetch lobbies');
                 }
                 
-                const lobbies = await lobbiesResponse.json();
+                const lobbiesData = await lobbiesResponse.json();
+                const lobbies = lobbiesData.success ? lobbiesData.lobbies : lobbiesData;
                 const lobbyExists = lobbies.some(lobby => lobby && lobby.id === lobbyId);
                 
                 if (!lobbyExists) {
@@ -193,7 +197,7 @@ export default createStore({
                     let errorMessage = 'Failed to join lobby';
                     try {
                         const errorData = await response.json();
-                        errorMessage = errorData.error || errorMessage;
+                        errorMessage = errorData.detail || errorData.error || errorMessage;
                     } catch (e) {
                         // If we can't parse the error, use the status text
                         errorMessage = response.status === 404 ? 'Lobby not found' : response.statusText;
@@ -201,7 +205,8 @@ export default createStore({
                     throw new Error(errorMessage);
                 }
                 
-                const lobby = await response.json();
+                const responseData = await response.json();
+                const lobby = responseData.success ? responseData.lobby : responseData;
                 console.log('[Store] Successfully joined lobby:', lobby);
                 
                 // Ensure the lobby has a players array
@@ -258,7 +263,7 @@ export default createStore({
                 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || 'Failed to leave lobby');
+                    throw new Error(errorData.detail || errorData.error || 'Failed to leave lobby');
                 }
                 
                 commit('setCurrentLobby', null);
@@ -296,10 +301,11 @@ export default createStore({
                 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || 'Failed to update status');
+                    throw new Error(errorData.detail || errorData.error || 'Failed to update status');
                 }
                 
-                const updatedLobby = await response.json();
+                const responseData = await response.json();
+                const updatedLobby = responseData.success ? responseData.lobby : responseData;
                 commit('setCurrentLobby', updatedLobby);
                 return updatedLobby;
                 

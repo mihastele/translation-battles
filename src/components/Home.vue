@@ -128,7 +128,9 @@ export default {
 
     async handleLogin() {
       if (this.username.trim()) {
-        await this.login(this.username)
+        const userId = await this.login(this.username);
+        // Initialize WebSocket connection with user ID
+        this.$ws.init(userId);
       }
     },
 

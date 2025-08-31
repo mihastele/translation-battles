@@ -2,15 +2,19 @@ let socket = null;
 const callbacks = new Map();
 import store from '../store'
 
-const initializeSocket = () => {
-    if (socket) return socket;
+const initializeSocket = (playerId = null) => {
+    if (socket && socket.readyState === WebSocket.OPEN) return socket;
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = import.meta.env.VITE_WS_URL || `${wsProtocol}//${window.location.hostname}:8080`;
+    const wsHost = import.meta.env.VITE_WS_URL || `${wsProtocol}//${window.location.hostname}:8000/ws`;
     
     socket = new WebSocket(wsHost);
     socket.onopen = () => {
         console.log('WebSocket connected');
+        // Send connection message with player ID if available
+        if (playerId) {
+            socket.send(JSON.stringify({ action: 'connect', playerId }));
+        }
     };
     
     socket.onmessage = (event) => {
@@ -27,8 +31,9 @@ const initializeSocket = () => {
     
     socket.onclose = () => {
         console.log('WebSocket disconnected. Attempting to reconnect...');
+        socket = null; // Reset socket reference
         // Attempt to reconnect after a delay
-        setTimeout(initializeSocket, 3000);
+        setTimeout(() => initializeSocket(playerId), 3000);
     };
     
     socket.onerror = (error) => {
@@ -40,14 +45,18 @@ const initializeSocket = () => {
 
 export default {
     install: (app) => {
-        const ws = initializeSocket();
-        
         // Make WebSocket available in all components via this.$ws
         app.config.globalProperties.$ws = {
+            // Initialize WebSocket with player ID
+            init: (playerId) => {
+                return initializeSocket(playerId);
+            },
+            
             // Send a message to the WebSocket server
             send: (type, data = {}) => {
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type, ...data }));
+                const ws = socket || initializeSocket();
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ action: type, ...data }));
                 } else {
                     console.error('WebSocket is not connected');
                 }
@@ -70,22 +79,34 @@ export default {
             
             // Join a lobby
             joinLobby: (lobbyId, playerName) => {
-                ws.send(JSON.stringify({ action: 'joinLobby', lobbyId, playerName }));
+                const ws = socket || initializeSocket();
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ action: 'joinLobby', lobbyId, playerName }));
+                }
             },
             
             // Leave a lobby
             leaveLobby: (lobbyId, playerName) => {
-                ws.send(JSON.stringify({ action: 'leaveLobby', lobbyId, playerName }));
+                const ws = socket || initializeSocket();
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ action: 'leaveLobby', lobbyId, playerName }));
+                }
             },
             
             // Start the game
             startGame: (lobbyId) => {
-                ws.send(JSON.stringify({ action: 'startGame', lobbyId }));
+                const ws = socket || initializeSocket();
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ action: 'startGame', lobbyId }));
+                }
             },
             
             // Submit an answer
             submitAnswer: (lobbyId, playerName, answer) => {
-                ws.send(JSON.stringify({ action: 'submitAnswer', lobbyId, playerName, answer }));
+                const ws = socket || initializeSocket();
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ action: 'submitAnswer', lobbyId, playerName, answer }));
+                }
             }
         };
     }
