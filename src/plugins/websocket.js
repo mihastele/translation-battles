@@ -7,7 +7,7 @@ const initializeSocket = (playerId = null) => {
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsHost = import.meta.env.VITE_WS_URL || `${wsProtocol}//${window.location.hostname}:8000/ws`;
-    
+
     socket = new WebSocket(wsHost);
     socket.onopen = () => {
         console.log('WebSocket connected');
@@ -16,30 +16,31 @@ const initializeSocket = (playerId = null) => {
             socket.send(JSON.stringify({ action: 'connect', playerId }));
         }
     };
-    
+
     socket.onmessage = (event) => {
         const message = JSON.parse(event.data);
         const { type, ...data } = message;
-        
+
         // Call all registered callbacks for this message type
         if (callbacks.has(type)) {
             callbacks.get(type).forEach(callback => callback(data));
         }
+
         // Dispatch to Vuex store for state updates
-        store.dispatch('websocket/handleWebSocketMessage', { type, ...data });
+        store.dispatch('handleWebSocketMessage', message);
     };
-    
+
     socket.onclose = () => {
         console.log('WebSocket disconnected. Attempting to reconnect...');
         socket = null; // Reset socket reference
         // Attempt to reconnect after a delay
         setTimeout(() => initializeSocket(playerId), 3000);
     };
-    
+
     socket.onerror = (error) => {
         console.error('WebSocket error:', error);
     };
-    
+
     return socket;
 };
 
@@ -51,7 +52,7 @@ export default {
             init: (playerId) => {
                 return initializeSocket(playerId);
             },
-            
+
             // Send a message to the WebSocket server
             send: (type, data = {}) => {
                 const ws = socket || initializeSocket();
@@ -61,14 +62,14 @@ export default {
                     console.error('WebSocket is not connected');
                 }
             },
-            
+
             // Register a callback for a specific message type
             on: (type, callback) => {
                 if (!callbacks.has(type)) {
                     callbacks.set(type, new Set());
                 }
                 callbacks.get(type).add(callback);
-                
+
                 // Return a function to unsubscribe
                 return () => {
                     if (callbacks.has(type)) {
@@ -76,7 +77,7 @@ export default {
                     }
                 };
             },
-            
+
             // Join a lobby
             joinLobby: (lobbyId, playerName) => {
                 const ws = socket || initializeSocket();
@@ -84,7 +85,7 @@ export default {
                     ws.send(JSON.stringify({ action: 'joinLobby', lobbyId, playerName }));
                 }
             },
-            
+
             // Leave a lobby
             leaveLobby: (lobbyId, playerName) => {
                 const ws = socket || initializeSocket();
@@ -92,7 +93,7 @@ export default {
                     ws.send(JSON.stringify({ action: 'leaveLobby', lobbyId, playerName }));
                 }
             },
-            
+
             // Start the game
             startGame: (lobbyId) => {
                 const ws = socket || initializeSocket();
@@ -100,7 +101,15 @@ export default {
                     ws.send(JSON.stringify({ action: 'startGame', lobbyId }));
                 }
             },
-            
+
+            // Toggle ready status
+            toggleReady: (lobbyId, currentStatus) => {
+                const ws = socket || initializeSocket();
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ action: 'toggleReady', lobbyId, currentStatus }));
+                }
+            },
+
             // Submit an answer
             submitAnswer: (lobbyId, playerName, answer) => {
                 const ws = socket || initializeSocket();
@@ -118,4 +127,23 @@ export const getWebSocket = () => {
         throw new Error('WebSocket not initialized. Make sure to call app.use(websocket) first.');
     }
     return socket;
+};
+
+export const initializeWebSocket = (playerId) => {
+    return initializeSocket(playerId);
+};
+
+export const closeWebSocket = () => {
+    if (socket) {
+        socket.close();
+        socket = null;
+    }
+};
+
+export const sendMessage = (message) => {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(message));
+        return true;
+    }
+    return false;
 };

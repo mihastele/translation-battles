@@ -100,6 +100,10 @@
                   <i class="bi bi-people-fill me-1"></i>
                   {{ lobby.players.length }} / {{ lobby.maxPlayers }}
                 </span>
+                <span v-if="lobby.countdownActive" class="badge bg-warning text-dark ms-2">
+                  <i class="bi bi-clock me-1"></i>
+                  Starting Soon
+                </span>
               </div>
 
               <div class="players-list mb-3">
@@ -117,9 +121,10 @@
                   <span>{{ player.username }}</span>
                   <span
                       class="badge ms-2"
-                      :class="player.status === 'ready' ? 'bg-success' : 'bg-secondary'"
+                      :class="getPlayerStatusClass(player)"
                   >
-                    {{ player.status === 'ready' ? 'Ready' : 'Not Ready' }}
+                    <i class="bi me-1" :class="getPlayerStatusIcon(player)"></i>
+                    {{ getPlayerStatusText(player) }}
                   </span>
                 </div>
               </div>
@@ -128,10 +133,10 @@
               <button
                   class="btn btn-primary w-100"
                   @click="handleJoinLobby(lobby.id)"
-                  :disabled="lobby.status !== 'waiting' || lobby.players.length >= lobby.maxPlayers"
+                  :disabled="!canJoinLobby(lobby)"
               >
                 <i class="bi bi-box-arrow-in-right me-2"></i>
-                Join Game
+                {{ getJoinButtonText(lobby) }}
               </button>
             </div>
           </div>
@@ -226,7 +231,8 @@ export default {
     getStatusBadgeClass(status) {
       switch (status) {
         case 'waiting': return 'bg-success'
-        case 'in-progress': return 'bg-warning'
+        case 'countdown': return 'bg-warning text-dark'
+        case 'in-progress': return 'bg-info'
         case 'finished': return 'bg-secondary'
         default: return 'bg-secondary'
       }
@@ -235,10 +241,49 @@ export default {
     formatStatus(status) {
       switch (status) {
         case 'waiting': return 'Waiting for Players'
+        case 'countdown': return 'Starting Soon'
         case 'in-progress': return 'Game in Progress'
         case 'finished': return 'Game Finished'
         default: return status
       }
+    },
+
+    getPlayerStatusClass(player) {
+      if (player.countdown_active && player.status !== 'ready') {
+        return 'bg-warning text-dark'
+      }
+      return player.status === 'ready' ? 'bg-success' : 'bg-secondary'
+    },
+
+    getPlayerStatusIcon(player) {
+      if (player.countdown_active && player.status !== 'ready') {
+        return 'bi-clock'
+      }
+      return player.status === 'ready' ? 'bi-check-circle' : 'bi-x-circle'
+    },
+
+    getPlayerStatusText(player) {
+      if (player.countdown_active && player.status !== 'ready') {
+        return 'Countdown'
+      }
+      return player.status === 'ready' ? 'Ready' : 'Not Ready'
+    },
+
+    canJoinLobby(lobby) {
+      return lobby.status === 'waiting' && lobby.players.length < lobby.maxPlayers
+    },
+
+    getJoinButtonText(lobby) {
+      if (lobby.status === 'countdown') {
+        return 'Starting Soon'
+      }
+      if (lobby.status === 'in-progress') {
+        return 'Game in Progress'
+      }
+      if (lobby.players.length >= lobby.maxPlayers) {
+        return 'Lobby Full'
+      }
+      return 'Join Game'
     }
   }
 }

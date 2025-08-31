@@ -60,9 +60,39 @@
         </div>
         <div v-else class="card mb-4">
           <div class="card-header">
-            <h3 class="mb-0">{{ currentLobby?.name || 'Game Lobby' }}</h3>
+            <div class="d-flex justify-content-between align-items-center">
+              <h3 class="mb-0">{{ currentLobby?.name || 'Game Lobby' }}</h3>
+              <div class="d-flex align-items-center">
+                <span v-if="currentLobby.status === 'countdown'" class="badge bg-warning me-2">
+                  <i class="bi bi-clock me-1"></i>
+                  Starting Soon...
+                </span>
+                <span v-else-if="currentLobby.status === 'waiting'" class="badge bg-success me-2">
+                  <i class="bi bi-hourglass-split me-1"></i>
+                  Waiting for Players
+                </span>
+              </div>
+            </div>
           </div>
           <div class="card-body">
+            <!-- Countdown notification -->
+            <div v-if="currentLobby.countdownActive" class="alert alert-warning mb-4">
+              <div class="d-flex align-items-center">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <div class="flex-grow-1">
+                  <strong>Game Starting Soon!</strong>
+                  <p class="mb-0">Unready players have {{ countdownDisplay }} seconds to ready up.</p>
+                </div>
+              </div>
+              <div v-if="unreadyPlayers.length > 0" class="mt-2">
+                <small>Waiting for: 
+                  <span v-for="(player, index) in unreadyPlayers" :key="player.id">
+                    {{ player.username }}<span v-if="index < unreadyPlayers.length - 1">, </span>
+                  </span>
+                </small>
+              </div>
+            </div>
+
             <div class="row mb-4">
               <div class="col-md-6">
                 <h5>Game Settings</h5>
@@ -88,46 +118,73 @@
                       v-for="player in currentLobby?.players || []"
                       :key="player.id"
                       class="list-group-item d-flex justify-content-between align-items-center"
+                      :class="{ 'bg-light': player.id === user.id }"
                   >
-                    <div>
+                    <div class="d-flex align-items-center">
                       <i
-                          class="bi"
-                          :class="player.id === currentLobby?.host ? 'bi-person-fill' : 'bi-person'"
+                          class="bi me-2"
+                          :class="player.id === currentLobby?.host ? 'bi-person-fill text-warning' : 'bi-person'"
                       ></i>
-                      {{ player.username }}
+                      <span class="fw-bold" v-if="player.id === user.id">{{ player.username }} (You)</span>
+                      <span v-else>{{ player.username }}</span>
                       <span
                           v-if="player.id === currentLobby?.host"
-                          class="badge bg-warning ms-1"
+                          class="badge bg-warning text-dark ms-2"
                       >Host</span>
                     </div>
-                    <span
-                        class="badge"
-                        :class="player.status === 'ready' ? 'bg-success' : 'bg-secondary'"
-                    >
-                      {{ player.status === 'ready' ? 'Ready' : 'Not Ready' }}
-                    </span>
+                    <div class="d-flex align-items-center">
+                      <!-- Countdown for individual player -->
+                      <span
+                          v-if="player.countdown_active && player.countdown_remaining > 0"
+                          class="badge bg-danger me-2"
+                      >
+                        {{ player.countdown_remaining }}s
+                      </span>
+                      <!-- Ready status -->
+                      <span
+                          class="badge"
+                          :class="getPlayerStatusBadgeClass(player)"
+                      >
+                        <i class="bi me-1" :class="getPlayerStatusIcon(player)"></i>
+                        {{ getPlayerStatusText(player) }}
+                      </span>
+                    </div>
                   </li>
                 </ul>
               </div>
             </div>
 
-            <div class="d-flex justify-content-center">
+            <!-- Action buttons -->
+            <div class="d-flex justify-content-center gap-3">
+              <!-- Host actions -->
               <button
                   v-if="isHost"
                   class="btn btn-lg btn-success"
-                  :disabled="!canStartGame"
+                  :disabled="!canStartGame && !currentLobby.countdownActive"
                   @click="startGame"
               >
-                <i class="bi bi-play-fill me-2"></i> Start Game
+                <i class="bi bi-play-fill me-2"></i>
+                {{ allPlayersReady ? 'Start Game' : 'Start Game (Force)' }}
               </button>
+              <!-- Non-host actions -->
               <button
                   v-else
                   class="btn btn-lg"
-                  :class="isReady ? 'btn-outline-success' : 'btn-success'"
+                  :class="getReadyButtonClass"
                   @click="toggleReady"
+                  :disabled="currentLobby.countdownActive && isReady"
               >
-                <i class="bi" :class="isReady ? 'bi-x-circle' : 'bi-check-circle'"></i>
+                <i class="bi me-1" :class="isReady ? 'bi-x-circle' : 'bi-check-circle'"></i>
                 {{ isReady ? 'Cancel Ready' : 'Ready Up' }}
+              </button>
+              
+              <!-- Leave lobby button -->
+              <button
+                  class="btn btn-lg btn-outline-danger"
+                  @click="leaveLobby"
+              >
+                <i class="bi bi-box-arrow-left me-1"></i>
+                Leave
               </button>
             </div>
           </div>
@@ -382,6 +439,7 @@ const roundWinners = ref([])
 const players = ref([])
 const timerInterval = ref(null)
 const translationInput = ref(null)
+const wsUnsubscribeFunctions = ref([])
 
 // Mock word database - in a real app, this would come from the server
 const wordDatabase = [
@@ -442,29 +500,78 @@ const canStartGame = computed(() => {
   return currentLobby.value.players.every(player => player?.status === 'ready')
 })
 
+const allPlayersReady = computed(() => {
+  if (!currentLobby.value || !currentLobby.value.players || !Array.isArray(currentLobby.value.players)) return false
+  return currentLobby.value.players.every(player => player?.status === 'ready')
+})
+
+const unreadyPlayers = computed(() => {
+  if (!currentLobby.value || !currentLobby.value.players) return []
+  return currentLobby.value.players.filter(player => 
+    player.status !== 'ready' && player.countdown_active
+  )
+})
+
+const countdownDisplay = computed(() => {
+  if (!currentLobby.value || !currentLobby.value.countdownActive) return 0
+  // Get the maximum countdown remaining from unready players
+  return Math.max(...unreadyPlayers.value.map(p => p.countdown_remaining || 0), 0)
+})
+
+const getReadyButtonClass = computed(() => {
+  if (currentLobby.value?.countdownActive && !isReady.value) {
+    return 'btn-warning' // Highlight the ready button during countdown
+  }
+  return isReady.value ? 'btn-outline-success' : 'btn-success'
+})
+
 const sortedPlayersByScore = computed(() => {
   return Array.isArray(players.value) ? [...players.value].sort((a, b) => b.score - a.score) : []
 })
 
 // Methods
 const leaveLobby = async () => {
-  // Notify server and cleanup
-  const instance = getCurrentInstance()
-  const ws = instance.proxy.$ws
-  ws.leaveLobby(currentLobby.value.id, user.value.username)
-  router.push('/')
+  try {
+    // Call the store action to leave the lobby
+    await store.dispatch('leaveLobby')
+    // Navigate back to home
+    router.push('/')
+  } catch (error) {
+    console.error('Error leaving lobby:', error)
+    // Still navigate away even if there was an error
+    router.push('/')
+  }
 }
 
 const toggleReady = async () => {
-  await store.dispatch('setPlayerReady', !isReady.value)
+  try {
+    await store.dispatch('setPlayerReady', !isReady.value)
+  } catch (error) {
+    console.error('Error toggling ready status:', error)
+  }
 }
 
-const startGame = () => {
-  // Defensive: ensure players array exists
-  if (!currentLobby.value || !Array.isArray(currentLobby.value.players)) {
-    // Optionally show an error, or just return
+const startGame = async () => {
+  try {
+    if (isHost.value) {
+      // Call the store action to start the game
+      await store.dispatch('startGame')
+    } else {
+      console.error('Only the host can start the game')
+      return
+    }
+  } catch (error) {
+    console.error('Error starting game:', error)
     return
   }
+  
+  // If we reach here, the game was started via API
+  // Now initialize the local game state
+  // Defensive: ensure players array exists
+  if (!currentLobby.value || !Array.isArray(currentLobby.value.players)) {
+    return
+  }
+  
   // Initialize player scores
   players.value = currentLobby.value.players.map(player => ({
     ...player,
@@ -487,6 +594,27 @@ const startGameCountdown = () => {
       startRound()
     }
   }, 1000)
+}
+
+const getPlayerStatusBadgeClass = (player) => {
+  if (player.countdown_active && player.status !== 'ready') {
+    return 'bg-warning text-dark'
+  }
+  return player.status === 'ready' ? 'bg-success' : 'bg-secondary'
+}
+
+const getPlayerStatusIcon = (player) => {
+  if (player.countdown_active && player.status !== 'ready') {
+    return 'bi-clock'
+  }
+  return player.status === 'ready' ? 'bi-check-circle' : 'bi-x-circle'
+}
+
+const getPlayerStatusText = (player) => {
+  if (player.countdown_active && player.status !== 'ready') {
+    return 'Countdown'
+  }
+  return player.status === 'ready' ? 'Ready' : 'Not Ready'
 }
 
 const startRound = () => {
@@ -690,6 +818,59 @@ onMounted(async () => {
   try {
     console.log('Game component mounted')
     
+    // Initialize WebSocket connection
+    if (user.value?.id) {
+      ws.init(user.value.id)
+    }
+    
+    // Set up WebSocket event listeners
+    const unsubscribeFunctions = [
+      ws.on('player_joined', (data) => {
+        console.log('Player joined:', data)
+        store.dispatch('handleWebSocketMessage', { type: 'player_joined', ...data })
+      }),
+      ws.on('player_left', (data) => {
+        console.log('Player left:', data)
+        store.dispatch('handleWebSocketMessage', { type: 'player_left', ...data })
+      }),
+      ws.on('player_ready', (data) => {
+        console.log('Player ready:', data)
+        store.dispatch('handleWebSocketMessage', { type: 'player_ready', ...data })
+      }),
+      ws.on('host_changed', (data) => {
+        console.log('Host changed:', data)
+        store.dispatch('handleWebSocketMessage', { type: 'host_changed', ...data })
+      }),
+      ws.on('countdown_started', (data) => {
+        console.log('Countdown started:', data)
+        store.dispatch('handleWebSocketMessage', { type: 'countdown_started', ...data })
+      }),
+      ws.on('countdown_update', (data) => {
+        console.log('Countdown update:', data)
+        store.dispatch('handleWebSocketMessage', { type: 'countdown_update', ...data })
+      }),
+      ws.on('game_started', (data) => {
+        console.log('Game started:', data)
+        store.dispatch('handleWebSocketMessage', { type: 'game_started', ...data })
+        // Also trigger local game start
+        if (!gameStarted.value) {
+          gameStarted.value = true
+          startGameCountdown()
+        }
+      }),
+      ws.on('lobby_state', (data) => {
+        console.log('Lobby state update:', data)
+        store.dispatch('handleWebSocketMessage', { type: 'lobby_state', ...data })
+      }),
+      ws.on('error', (data) => {
+        console.error('WebSocket error:', data)
+        // Could show a toast notification here
+      })
+    ]
+    
+    // Store unsubscribe functions for cleanup
+    wsUnsubscribeFunctions.value = unsubscribeFunctions
+    
     // Ensure we have a user
     if (!user.value || !user.value.id) {
       console.log('No user found, checking store state')
@@ -787,6 +968,11 @@ onBeforeUnmount(() => {
   // Clear any active intervals
   if (timerInterval.value) {
     clearInterval(timerInterval.value)
+  }
+  
+  // Clean up WebSocket event listeners
+  if (wsUnsubscribeFunctions.value) {
+    wsUnsubscribeFunctions.value.forEach(unsubscribe => unsubscribe())
   }
 })
 
